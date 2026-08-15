@@ -1,0 +1,19 @@
+# Metadado do Backstage Software Catalog.
+#
+# Lido pelo Backstage, mas a aplicação NÃO depende dele para rodar.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: url-shortener
+  description: API REST que encurta URLs — primeiro produto-piloto da fabrica
+  annotations:
+    github.com/project-slug: gsbad/url-shortener
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - java
+    - spring-boot
+    - api
+spec:
+  type: service
+  lifecycle: experimental   # experimental | production | deprecated
+  owner: gsbad

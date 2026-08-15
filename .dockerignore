@@ -1,0 +1,11 @@
+# Reduz o contexto de build e evita levar segredo ou histórico para dentro da
+# imagem. O target/ é reconstruído dentro do próprio build multi-stage.
+.git/
+.gitignore
+.env
+target/
+docs/
+README.md
+compose.yaml
+.idea/
+.vscode/

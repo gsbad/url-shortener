@@ -1,0 +1,28 @@
+# Ambiente e segredos — nunca versionar
+.env
+*.pem
+*.key
+*.p12
+*.jks
+
+# Build
+target/
+
+# IDE — Eclipse
+.classpath
+.project
+.settings/
+.apt_generated/
+.factorypath
+
+# IDE — IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# IDE — VS Code
+.vscode/
+
+# Logs
+*.log

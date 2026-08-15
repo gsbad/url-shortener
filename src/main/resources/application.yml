@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: url-shortener
+
+app:
+  # Toda configuração vem do ambiente. O valor após ':' é apenas o padrão de
+  # desenvolvimento local — nunca colocar credencial aqui.
+  environment: ${ENVIRONMENT:development}
+
+server:
+  port: ${PORT:${SERVER_PORT:8080}}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Só o health. Expor '*' entrega métricas e variáveis de ambiente
+        # para quem alcançar a porta.
+        include: health
+  endpoint:
+    health:
+      show-details: never
