@@ -2,10 +2,26 @@ spring:
   application:
     name: url-shortener
 
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:urlshortener}
+    username: ${DB_USER:urlshortener}
+    password: ${DB_PASSWORD:urlshortener}
+
+  jpa:
+    # Quem cria e altera schema é o Flyway. O Hibernate apenas confere que o
+    # mapeamento bate com o que existe — se divergir, a aplicação não sobe.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+  flyway:
+    enabled: true
+
 app:
-  # Toda configuração vem do ambiente. O valor após ':' é apenas o padrão de
-  # desenvolvimento local — nunca colocar credencial aqui.
   environment: ${ENVIRONMENT:development}
+  # Base usada para montar shortUrl. Fixar o host no código impediria o mesmo
+  # binário de rodar em ambientes diferentes.
+  base-url: ${APP_BASE_URL:http://localhost:8080}
 
 server:
   port: ${PORT:${SERVER_PORT:8080}}
@@ -14,8 +30,6 @@ management:
   endpoints:
     web:
       exposure:
-        # Só o health. Expor '*' entrega métricas e variáveis de ambiente
-        # para quem alcançar a porta.
         include: health
   endpoint:
     health:

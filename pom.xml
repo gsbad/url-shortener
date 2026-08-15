@@ -43,17 +43,40 @@
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Flyway versiona o schema. O Hibernate fica com ddl-auto=validate:
+             quem cria tabela é a migração, nunca o ORM. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
 
-        <!-- Persistência: descomente quando o projeto precisar de banco.
-             Junto, acrescentar o driver e o Flyway para migração.
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
-        -->
+        <!-- Os testes de integração usam um PostgreSQL real, provisionado
+             fora do build: `docker compose up -d db` localmente, e o bloco
+             `services:` do workflow no CI.
+
+             Testcontainers seria o padrão da fábrica e foi a primeira escolha,
+             mas está BLOQUEADO neste ambiente — ver docs/adr/0003. Testar
+             contra H2 não é alternativa: as migrações usam BIGSERIAL,
+             TIMESTAMPTZ e SEQUENCE, então o schema validado seria outro. -->
     </dependencies>
 
     <build>

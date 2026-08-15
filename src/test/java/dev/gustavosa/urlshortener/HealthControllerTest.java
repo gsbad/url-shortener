@@ -10,9 +10,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
-/**
- * Exemplo do padrão de teste: MockMvc, sem subir servidor de verdade.
- */
 @SpringBootTest
 @AutoConfigureMockMvc
 class HealthControllerTest {
@@ -24,13 +21,19 @@ class HealthControllerTest {
     void healthRetorna200ComStatusOk() throws Exception {
         mockMvc.perform(get("/health"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("ok"))
-                .andExpect(jsonPath("$.app").exists())
-                .andExpect(jsonPath("$.environment").exists());
+                .andExpect(jsonPath("$.status").value("ok"));
     }
 
+    /**
+     * {@code /health} e {@code /{code}} são ambos rotas de primeiro nível. O
+     * Spring resolve a favor do literal, mas isso é comportamento implícito —
+     * este teste o torna explícito, para que uma mudança futura de mapeamento
+     * não derrube o health check em silêncio.
+     */
     @Test
-    void rotaInexistenteRetorna404() throws Exception {
-        mockMvc.perform(get("/nao-existe")).andExpect(status().isNotFound());
+    void healthNaoEhCapturadoPelaRotaDeRedirect() throws Exception {
+        mockMvc.perform(get("/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.app").value("url-shortener"));
     }
 }

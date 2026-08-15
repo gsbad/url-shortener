@@ -5,7 +5,7 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: url-shortener
-  description: API REST que encurta URLs — primeiro produto-piloto da fabrica
+  description: API REST que encurta URLs — primeiro produto-piloto da Indie Software Factory
   annotations:
     github.com/project-slug: gsbad/url-shortener
     backstage.io/techdocs-ref: dir:.
@@ -13,7 +13,9 @@ metadata:
     - java
     - spring-boot
     - api
+    - postgresql
+    - lab
 spec:
   type: service
-  lifecycle: experimental   # experimental | production | deprecated
+  lifecycle: experimental
   owner: gsbad

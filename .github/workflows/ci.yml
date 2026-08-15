@@ -1,5 +1,9 @@
 # Pipeline padrão Java da plataforma:
-#   checkout → compile → test → package → build da imagem → validação
+#   checkout → compile → test → package → build da imagem → smoke test
+#
+# Diferença em relação ao template: os testes de integração precisam de um
+# PostgreSQL real, provisionado pelo bloco `services:` abaixo. Testcontainers
+# seria o padrão, mas está bloqueado no ambiente local — ver docs/adr/0003.
 name: CI
 
 on:
@@ -12,6 +16,26 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: urlshortener
+          POSTGRES_USER: urlshortener
+          # Credencial efêmera de um serviço que só existe durante este job e
+          # só escuta em localhost do runner. Não é secret.
+          POSTGRES_PASSWORD: urlshortener
+        ports:
+          - 5432:5432
+        # Sem isto, os testes começam antes do banco aceitar conexão e o
+        # Flyway falha na primeira execução.
+        options: >-
+          --health-cmd "pg_isready -U urlshortener -d urlshortener"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,6 +50,12 @@ jobs:
 
       - name: Testes
         run: mvn -B test
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: urlshortener
+          DB_USER: urlshortener
+          DB_PASSWORD: urlshortener
 
       - name: Empacotar
         run: mvn -B package -DskipTests
@@ -47,12 +77,47 @@ jobs:
       - name: Build da imagem
         run: docker build -t ${{ github.event.repository.name }}:${{ github.sha }} .
 
+      # Sobe a aplicação junto de um PostgreSQL na mesma rede e confere que ela
+      # responde. Prova que a imagem funciona, não apenas que compila.
       - name: Smoke test da imagem
         run: |
-          docker run -d --name smoke -p 8080:8080 \
-            ${{ github.event.repository.name }}:${{ github.sha }}
+          docker network create smoke-net
+          docker run -d --name smoke-db --network smoke-net \
+            -e POSTGRES_DB=urlshortener \
+            -e POSTGRES_USER=urlshortener \
+            -e POSTGRES_PASSWORD=urlshortener \
+            --health-cmd "pg_isready -U urlshortener -d urlshortener" \
+            --health-interval 5s --health-retries 10 \
+            postgres:16-alpine
+
           for i in $(seq 1 30); do
-            if curl -fs http://localhost:8080/health; then echo "OK"; exit 0; fi
+            [ "$(docker inspect -f '{{.State.Health.Status}}' smoke-db)" = healthy ] && break
             sleep 2
           done
-          echo "health check nao respondeu"; docker logs smoke; exit 1
+
+          docker run -d --name smoke-api --network smoke-net -p 8080:8080 \
+            -e DB_HOST=smoke-db \
+            -e DB_USER=urlshortener \
+            -e DB_PASSWORD=urlshortener \
+            -e DB_NAME=urlshortener \
+            ${{ github.event.repository.name }}:${{ github.sha }}
+
+          for i in $(seq 1 40); do
+            if curl -fs http://localhost:8080/health; then
+              echo
+              echo "health OK — exercitando a API"
+              code=$(curl -fs -X POST http://localhost:8080/api/urls \
+                       -H 'Content-Type: application/json' \
+                       -d '{"url":"https://example.com"}' \
+                     | grep -oE '"code":"[^"]+"' | cut -d'"' -f4)
+              echo "código gerado: $code"
+              curl -fs "http://localhost:8080/api/urls/$code"
+              echo
+              exit 0
+            fi
+            sleep 3
+          done
+
+          echo "a aplicação não respondeu"
+          docker logs smoke-api
+          exit 1
