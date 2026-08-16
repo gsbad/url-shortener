@@ -1,0 +1,12 @@
+site_name: url-shortener
+site_description: API REST que encurta URLs — primeiro produto-piloto da Indie Software Factory
+
+nav:
+  - Início: index.md
+  - Decisões (ADR):
+      - '0001 — Registrar decisões arquiteturais em ADR': adr/0001-registrar-decisoes-em-adr.md
+      - '0002 — Gerar o código curto com sequence do PostgreSQL em Base62': adr/0002-gerar-codigo-com-sequence-base62.md
+      - '0003 — Testes com PostgreSQL externo, em vez de Testcontainers': adr/0003-testes-com-postgresql-externo.md
+
+plugins:
+  - techdocs-core
