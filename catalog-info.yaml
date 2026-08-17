@@ -19,3 +19,198 @@ spec:
   type: service
   lifecycle: experimental
   owner: gsbad
+  providesApis: [url-shortener]
+---
+# Backstage Lab Fase 5.5 — API real, não inventada.
+#
+# A fonte de verdade é o código: springdoc gera esta especificação em
+# runtime a partir dos @RestController reais (GET /v3/api-docs, app de
+# pé com o Postgres do compose.yaml — ver README). docs/api/openapi.json
+# é uma cópia estática exportada dela; o bloco spec.definition abaixo é a
+# MESMA cópia, inline — não um terceiro texto escrito à mão.
+#
+# Inline, não $text: ./docs/api/openapi.json — mesmo motivo do dice-api
+# (ver catalog-info.yaml daquele projeto): locations type: file (o caso
+# deste projeto) não resolvem $text nesta versão do Backstage.
+#
+# Regenerar as DUAS cópias juntas (app rodando com Postgres real,
+# JAVA_HOME=21 — ver README):
+#   curl -s http://localhost:8080/v3/api-docs | python3 -m json.tool > docs/api/openapi.json
+#   E copiar o conteúdo resultante para o bloco spec.definition abaixo.
+#
+# docs/** e catalog-info.yaml já estão em paths-ignore no CI — editar este
+# arquivo não dispara build/deploy.
+apiVersion: backstage.io/v1alpha1
+kind: API
+metadata:
+  name: url-shortener
+  title: URL Shortener API
+  description: Encurtamento de URLs — POST /api/urls, GET /api/urls/{code}, GET /{code} (redirect)
+  annotations:
+    github.com/project-slug: gsbad/url-shortener
+spec:
+  type: openapi
+  lifecycle: experimental
+  owner: gsbad
+  definition: |
+    {
+        "openapi": "3.1.0",
+        "info": {
+            "title": "OpenAPI definition",
+            "version": "v0"
+        },
+        "servers": [
+            {
+                "url": "http://localhost:8080",
+                "description": "Generated server url"
+            }
+        ],
+        "paths": {
+            "/api/urls": {
+                "post": {
+                    "tags": [
+                        "short-url-controller"
+                    ],
+                    "operationId": "create",
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/CreateUrlRequest"
+                                }
+                            }
+                        },
+                        "required": true
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": {
+                                "*/*": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/ShortUrlResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/{code}": {
+                "get": {
+                    "tags": [
+                        "short-url-controller"
+                    ],
+                    "operationId": "redirect",
+                    "parameters": [
+                        {
+                            "name": "code",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "OK"
+                        }
+                    }
+                }
+            },
+            "/health": {
+                "get": {
+                    "tags": [
+                        "health-controller"
+                    ],
+                    "operationId": "health",
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": {
+                                "*/*": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/Health"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/api/urls/{code}": {
+                "get": {
+                    "tags": [
+                        "short-url-controller"
+                    ],
+                    "operationId": "get",
+                    "parameters": [
+                        {
+                            "name": "code",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "OK",
+                            "content": {
+                                "*/*": {
+                                    "schema": {
+                                        "$ref": "#/components/schemas/ShortUrlResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "CreateUrlRequest": {
+                    "type": "object",
+                    "properties": {
+                        "url": {
+                            "type": "string",
+                            "maxLength": 2048,
+                            "minLength": 0,
+                            "pattern": "^https?://.+"
+                        }
+                    }
+                },
+                "ShortUrlResponse": {
+                    "type": "object",
+                    "properties": {
+                        "code": {
+                            "type": "string"
+                        },
+                        "url": {
+                            "type": "string"
+                        },
+                        "shortUrl": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "Health": {
+                    "type": "object",
+                    "properties": {
+                        "status": {
+                            "type": "string"
+                        },
+                        "app": {
+                            "type": "string"
+                        },
+                        "environment": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        }
+    }
