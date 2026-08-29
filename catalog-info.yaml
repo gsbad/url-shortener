@@ -9,12 +9,17 @@ metadata:
   annotations:
     github.com/project-slug: gsbad/url-shortener
     backstage.io/techdocs-ref: dir:.
+    # Ciclo de development-workflow.md — mesmos termos, sem vocabulário
+    # novo. IMPLEMENTATION porque não está deployado em lugar nenhum ainda
+    # — só compose.yaml local. Ver plano-ciclo-catalogo-deploy-observabilidade.md §5.
+    factory.io/stage: IMPLEMENTATION
   tags:
     - java
     - spring-boot
     - api
     - postgresql
     - lab
+    - stage:implementation
 spec:
   type: service
   lifecycle: experimental
