@@ -131,6 +131,11 @@ jobs:
     permissions:
       contents: read
       packages: write
+    env:
+      # Precisa estar no nível do job, não do step — testado ao vivo:
+      # `secrets` não existe dentro de `if:` de step ("Unrecognized
+      # named-value: 'secrets'", erro de parse, quebra o workflow inteiro).
+      GHCR_VISIBILITY_PAT: ${{ secrets.GHCR_VISIBILITY_PAT }}
     steps:
       - uses: actions/checkout@v4
 
@@ -151,9 +156,7 @@ jobs:
       # Passo padrão da fábrica — development-workflow.md §Gap de
       # autenticação GHCR. Sem o secret, pulado silenciosamente.
       - name: Torna o pacote GHCR público (evita o gap de autenticação documentado)
-        if: ${{ secrets.GHCR_VISIBILITY_PAT != '' }}
-        env:
-          GHCR_VISIBILITY_PAT: ${{ secrets.GHCR_VISIBILITY_PAT }}
+        if: ${{ env.GHCR_VISIBILITY_PAT != '' }}
         run: |
           curl -sf -X PATCH \
             -H "Authorization: Bearer $GHCR_VISIBILITY_PAT" \
