@@ -224,9 +224,12 @@ jobs:
             -e DB_PASSWORD="$DB_PASSWORD" -e DB_NAME="$DB_NAME" \
             "$IMG"
 
-          for i in $(seq 1 15); do
+          # Spring Boot + JPA leva mais de 30s pra subir (testado ao vivo:
+          # ainda em "Bootstrapping JPA repositories" aos 15s) — diferente
+          # do FastAPI dos outros projetos da fábrica. 40x3s = 120s.
+          for i in $(seq 1 40); do
             if curl -fs http://localhost:8002/health; then echo "OK"; exit 0; fi
-            sleep 2
+            sleep 3
           done
           echo "health check nao respondeu apos deploy"; docker logs url-shortener; exit 1
           REMOTE
