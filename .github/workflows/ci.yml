@@ -1,17 +1,23 @@
 # Pipeline padrão Java da plataforma:
-#   checkout → compile → test → package → build da imagem → smoke test
+#   checkout → compile → test → package → build da imagem → smoke test →
+#   publish (GHCR) → deploy (OCI Compute, Postgres dedicado)
 #
-# Diferença em relação ao template: os testes de integração precisam de um
-# PostgreSQL real, provisionado pelo bloco `services:` abaixo. Testcontainers
-# seria o padrão, mas está bloqueado no ambiente local — ver docs/adr/0003.
+# Jobs publish/deploy gerados pelo Template "Publicar lab na OCI" do
+# Backstage (_labs/backstage-lab/templates/publish-lab-to-oci) — build/test
+# preservados do CI original do projeto. Arquivo estático (fetch:plain, sem
+# Nunjucks) — primeiro caso real é o url-shortener; generalizar com
+# parâmetros de verdade fica para quando houver um segundo caso.
 name: CI
 
 on:
   push:
     branches: [main]
-    paths-ignore: ["**.md", "docs/**", "LICENSE"]
+    paths-ignore: ["**.md", "docs/**", "LICENSE", "catalog-info.yaml", "mkdocs.yml"]
   pull_request:
     branches: [main]
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
   build:
@@ -28,8 +34,6 @@ jobs:
           POSTGRES_PASSWORD: urlshortener
         ports:
           - 5432:5432
-        # Sem isto, os testes começam antes do banco aceitar conexão e o
-        # Flyway falha na primeira execução.
         options: >-
           --health-cmd "pg_isready -U urlshortener -d urlshortener"
           --health-interval 5s
@@ -77,8 +81,6 @@ jobs:
       - name: Build da imagem
         run: docker build -t ${{ github.event.repository.name }}:${{ github.sha }} .
 
-      # Sobe a aplicação junto de um PostgreSQL na mesma rede e confere que ela
-      # responde. Prova que a imagem funciona, não apenas que compila.
       - name: Smoke test da imagem
         run: |
           docker network create smoke-net
@@ -121,3 +123,107 @@ jobs:
           echo "a aplicação não respondeu"
           docker logs smoke-api
           exit 1
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login no GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build e push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+
+      # Passo padrão da fábrica — development-workflow.md §Gap de
+      # autenticação GHCR. Sem o secret, pulado silenciosamente.
+      - name: Torna o pacote GHCR público (evita o gap de autenticação documentado)
+        if: ${{ secrets.GHCR_VISIBILITY_PAT != '' }}
+        env:
+          GHCR_VISIBILITY_PAT: ${{ secrets.GHCR_VISIBILITY_PAT }}
+        run: |
+          curl -sf -X PATCH \
+            -H "Authorization: Bearer $GHCR_VISIBILITY_PAT" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/user/packages/container/${{ github.event.repository.name }}" \
+            -d '{"visibility":"public"}' \
+          && echo "Pacote tornado público." \
+          || echo "Falha ao alterar visibilidade — confira o escopo do GHCR_VISIBILITY_PAT."
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: publish
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - name: Deploy via SSH na OCI Compute
+        env:
+          SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
+          HOST: ${{ secrets.OCI_HOST }}
+          USER: ${{ secrets.OCI_USER }}
+          # Postgres dedicado ao url-shortener, não compartilhado — secret
+          # próprio, precisa existir antes do primeiro deploy real.
+          DB_PASSWORD: ${{ secrets.URLSHORTENER_DB_PASSWORD }}
+          TAG: ${{ github.sha }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          ssh -i ~/.ssh/deploy_key "$USER@$HOST" bash -s -- \
+            "$IMAGE:$TAG" "$DB_PASSWORD" <<'REMOTE'
+          set -e
+          IMG="$1"
+          DB_PASSWORD="$2"
+          NET="url-shortener-net"
+          DB_VOLUME="url-shortener-db-data"
+          DB_NAME="urlshortener"
+
+          docker network create "$NET" 2>/dev/null || true
+          docker volume create "$DB_VOLUME" 2>/dev/null || true
+
+          # Postgres dedicado — não compartilhado com nenhum outro serviço
+          # da VM. Sobe só se ainda não existir; não recria a cada deploy
+          # (perderia os dados).
+          if ! docker inspect url-shortener-db >/dev/null 2>&1; then
+            docker run -d --name url-shortener-db --network "$NET" \
+              --restart unless-stopped \
+              -v "$DB_VOLUME:/var/lib/postgresql/data" \
+              -e POSTGRES_DB="$DB_NAME" -e POSTGRES_USER="$DB_NAME" \
+              -e POSTGRES_PASSWORD="$DB_PASSWORD" \
+              postgres:16-alpine
+          fi
+
+          for i in $(seq 1 15); do
+            docker exec url-shortener-db pg_isready -U "$DB_NAME" && break
+            sleep 2
+          done
+
+          docker pull "$IMG"
+          docker stop url-shortener 2>/dev/null || true
+          docker rm url-shortener 2>/dev/null || true
+          docker run -d --name url-shortener --network "$NET" \
+            --restart unless-stopped -p 8002:8080 \
+            -e DB_HOST=url-shortener-db -e DB_USER="$DB_NAME" \
+            -e DB_PASSWORD="$DB_PASSWORD" -e DB_NAME="$DB_NAME" \
+            "$IMG"
+
+          for i in $(seq 1 15); do
+            if curl -fs http://localhost:8002/health; then echo "OK"; exit 0; fi
+            sleep 2
+          done
+          echo "health check nao respondeu apos deploy"; docker logs url-shortener; exit 1
+          REMOTE
