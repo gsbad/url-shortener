@@ -131,11 +131,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-    env:
-      # Precisa estar no nível do job, não do step — testado ao vivo:
-      # `secrets` não existe dentro de `if:` de step ("Unrecognized
-      # named-value: 'secrets'", erro de parse, quebra o workflow inteiro).
-      GHCR_VISIBILITY_PAT: ${{ secrets.GHCR_VISIBILITY_PAT }}
     steps:
       - uses: actions/checkout@v4
 
@@ -152,19 +147,12 @@ jobs:
           context: .
           push: true
           tags: ${{ env.IMAGE }}:${{ github.sha }}
+      # Sem passo de "tornar público" aqui — não existe API do GitHub pra
+      # isso, testado ao vivo (2026-08-30). Se o deploy falhar com
+      # "unauthorized" no pull, é isso: torne o pacote público manualmente
+      # em Package settings → Danger Zone → Change visibility. Ver
+      # development-workflow.md §Gap de autenticação GHCR.
 
-      # Passo padrão da fábrica — development-workflow.md §Gap de
-      # autenticação GHCR. Sem o secret, pulado silenciosamente.
-      - name: Torna o pacote GHCR público (evita o gap de autenticação documentado)
-        if: ${{ env.GHCR_VISIBILITY_PAT != '' }}
-        run: |
-          curl -sf -X PATCH \
-            -H "Authorization: Bearer $GHCR_VISIBILITY_PAT" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/user/packages/container/${{ github.event.repository.name }}" \
-            -d '{"visibility":"public"}' \
-          && echo "Pacote tornado público." \
-          || echo "Falha ao alterar visibilidade — confira o escopo do GHCR_VISIBILITY_PAT."
 
   deploy:
     runs-on: ubuntu-latest
