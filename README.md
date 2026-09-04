@@ -7,6 +7,10 @@ API REST que encurta URLs. **Primeiro produto-piloto da Indie Software Factory.*
 > encurtador de URLs sério. O domínio foi escolhido por ser trivial: um domínio
 > complexo esconderia a fricção da fábrica atrás da fricção do problema.
 
+> **Deploy em `oci-lab-vm-2` decomissionado em 2026-09-04** (consolidação da
+> VM para `reforma-casa`) — container, Postgres e volume removidos. Ver
+> [`docs/deployment.md`](docs/deployment.md#descomissionamento).
+
 ---
 
 ## Stack

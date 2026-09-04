@@ -153,71 +153,8 @@ jobs:
       # em Package settings → Danger Zone → Change visibility. Ver
       # development-workflow.md §Gap de autenticação GHCR.
 
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: publish
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - name: Deploy via SSH na OCI Compute
-        env:
-          SSH_KEY: ${{ secrets.OCI_SSH_KEY }}
-          HOST: ${{ secrets.OCI_HOST }}
-          USER: ${{ secrets.OCI_USER }}
-          # Postgres dedicado ao url-shortener, não compartilhado — secret
-          # próprio, precisa existir antes do primeiro deploy real.
-          DB_PASSWORD: ${{ secrets.URLSHORTENER_DB_PASSWORD }}
-          TAG: ${{ github.sha }}
-        run: |
-          umask 077
-          mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/deploy_key
-          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
-
-          ssh -i ~/.ssh/deploy_key "$USER@$HOST" bash -s -- \
-            "$IMAGE:$TAG" "$DB_PASSWORD" <<'REMOTE'
-          set -e
-          IMG="$1"
-          DB_PASSWORD="$2"
-          NET="url-shortener-net"
-          DB_VOLUME="url-shortener-db-data"
-          DB_NAME="urlshortener"
-
-          docker network create "$NET" 2>/dev/null || true
-          docker volume create "$DB_VOLUME" 2>/dev/null || true
-
-          # Postgres dedicado — não compartilhado com nenhum outro serviço
-          # da VM. Sobe só se ainda não existir; não recria a cada deploy
-          # (perderia os dados).
-          if ! docker inspect url-shortener-db >/dev/null 2>&1; then
-            docker run -d --name url-shortener-db --network "$NET" \
-              --restart unless-stopped \
-              -v "$DB_VOLUME:/var/lib/postgresql/data" \
-              -e POSTGRES_DB="$DB_NAME" -e POSTGRES_USER="$DB_NAME" \
-              -e POSTGRES_PASSWORD="$DB_PASSWORD" \
-              postgres:16-alpine
-          fi
-
-          for i in $(seq 1 15); do
-            docker exec url-shortener-db pg_isready -U "$DB_NAME" && break
-            sleep 2
-          done
-
-          docker pull "$IMG"
-          docker stop url-shortener 2>/dev/null || true
-          docker rm url-shortener 2>/dev/null || true
-          docker run -d --name url-shortener --network "$NET" \
-            --restart unless-stopped -p 8002:8080 \
-            -e DB_HOST=url-shortener-db -e DB_USER="$DB_NAME" \
-            -e DB_PASSWORD="$DB_PASSWORD" -e DB_NAME="$DB_NAME" \
-            "$IMG"
-
-          # Spring Boot + JPA leva mais de 30s pra subir (testado ao vivo:
-          # ainda em "Bootstrapping JPA repositories" aos 15s) — diferente
-          # do FastAPI dos outros projetos da fábrica. 40x3s = 120s.
-          for i in $(seq 1 40); do
-            if curl -fs http://localhost:8002/health; then echo "OK"; exit 0; fi
-            sleep 3
-          done
-          echo "health check nao respondeu apos deploy"; docker logs url-shortener; exit 1
-          REMOTE
+  # Job `deploy` removido em 2026-09-04 — url-shortener foi decomissionado
+  # de oci-lab-vm-2 (consolidação: a VM fica só com reforma-casa). Ver
+  # docs/deployment.md, seção "Descomissionamento". Container, Postgres e
+  # volume de dados foram removidos da VM; a imagem continua publicada no
+  # GHCR.

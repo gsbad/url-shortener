@@ -10,8 +10,11 @@ metadata:
     github.com/project-slug: gsbad/url-shortener
     backstage.io/techdocs-ref: dir:.
     # Ciclo de development-workflow.md — mesmos termos, sem vocabulário
-    # novo. IMPLEMENTATION porque não está deployado em lugar nenhum ainda
-    # — só compose.yaml local. Ver plano-ciclo-catalogo-deploy-observabilidade.md §5.
+    # novo. Ver plano-ciclo-catalogo-deploy-observabilidade.md §5.
+    #
+    # Esteve em OPERATE (deployado em oci-lab-vm-2:8002 + Postgres
+    # dedicado) — decomissionado em 2026-09-04, consolidação da VM para
+    # reforma-casa. Ver docs/deployment.md, seção "Descomissionamento".
     factory.io/stage: IMPLEMENTATION
   tags:
     - java
